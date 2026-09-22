@@ -102,9 +102,16 @@ class TestJWT:
         invalidated by modifying the payload."""
         token = create_token(self.USER_ID, self.EMAIL, self.ROLE)
 
-        # Flip one character in the signature segment (last JWT part)
+        # Corrupt the FIRST character of the signature segment.
+        # HS256 produces a 32-byte (256-bit) HMAC encoded as 43 base64url chars.
+        # The very last character only encodes 2 meaningful bits — the other 4
+        # are ignored padding, so flipping it can leave the decoded bytes unchanged
+        # and PyJWT still accepts the token. The first character always encodes 6
+        # full bits of the actual HMAC, so changing it reliably invalidates the
+        # signature regardless of what value it happens to hold.
         header, payload, signature = token.split(".")
-        bad_signature = signature[:-1] + ("A" if signature[-1] != "A" else "B")
+        bad_first_char = "B" if signature[0] != "B" else "C"
+        bad_signature = bad_first_char + signature[1:]
         tampered = f"{header}.{payload}.{bad_signature}"
 
         result = decode_token(tampered)
